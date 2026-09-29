@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { meetingsApi } from "@/lib/api/meetings";
 import { hasErrors, validateScheduleForm, type ScheduleFormErrors, type ScheduleFormValues } from "@/lib/validation/scheduleForm";
-import { useCurrentUser } from "@/providers/CurrentUserProvider";
+import { useCurrentUser } from "@/providers/AuthProvider";
 import type { Meeting } from "@/types/meeting";
 import { ScheduleMeetingForm } from "./ScheduleMeetingForm";
 import { defaultScheduleValues, mapServerErrors, meetingToScheduleValues, scheduleValuesToInput } from "./scheduleFormMapping";

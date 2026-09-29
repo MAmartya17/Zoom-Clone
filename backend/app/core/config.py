@@ -17,8 +17,12 @@ class Settings(BaseSettings):
     # Seed demo data on startup when the database is empty (useful on ephemeral hosts).
     seed_on_startup: bool = True
 
+    # Seeded demo account (documented in the README so evaluators can sign in).
     default_user_email: str = "alex.morgan@example.com"
     default_user_name: str = "Alex Morgan"
+    default_user_password: str = "demo1234"
+
+    auth_session_days: int = 30
 
     # An empty live room is ended after this many seconds, so a page refresh
     # does not end the meeting but abandoned rooms do not stay "live" forever.

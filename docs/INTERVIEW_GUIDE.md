@@ -41,9 +41,10 @@ A walkthrough you can present on a whiteboard. Each section answers "what", "why
 
 ## 4. Database schema
 
-Four tables. [`backend/app/models/`](../backend/app/models)
+Five tables. [`backend/app/models/`](../backend/app/models)
 
-- **users**: the default user (and future real users). `email` is UNIQUE.
+- **users**: accounts. `email` is UNIQUE (stored lower-case), plus `password_hash` (scrypt).
+- **auth_sessions**: signed-in browsers. `user_id` FK CASCADE, `token_hash` UNIQUE, `expires_at`. Logout deletes the row.
 - **meetings**: `meeting_code` (the public 11-digit ID, UNIQUE), `passcode`, `host_id` FK, `meeting_type`, `status`, `scheduled_start_at` / `scheduled_end_at`, settings, and actual `started_at` / `ended_at`.
 - **participants**: one row per **join session**. `user_id` is nullable (guests), `role`, `status`, `session_token_hash`, `joined_at` / `left_at`.
 - **chat_messages**: `meeting_id` FK and `participant_id` FK.
@@ -59,6 +60,7 @@ Talking points:
 ## 5. Entity relationships
 
 ```
+User 1──N AuthSession        (one per signed-in browser; delete user → delete sessions)
 User 1──N Meeting            (a user hosts many meetings; delete user → delete meetings)
 Meeting 1──N Participant     (a meeting has many join sessions; cascade delete)
 User 1──N Participant        (optional; guests have user_id NULL; delete user → SET NULL)
@@ -174,7 +176,8 @@ Meeting status: `scheduled → live` on the first connect. `live → ended` when
 | In-memory presence | Simple, fast | Single instance; restart ends live meetings |
 | Sync ORM | Simplicity | Threadpool hop in the WS code |
 | `create_all` instead of Alembic | Nothing to manage for v1 | Needs Alembic before the first schema change in production |
-| Entry path decides the role (no auth) | Meets "no login" brief | Anyone could hit `/start` today; real auth closes that |
+| Bearer token in localStorage | Works across vercel.app ↔ onrender.com | Exposed to XSS (an HttpOnly cookie via a same-domain proxy is the upgrade) |
+| DB-backed sessions (not JWT) | Real logout / revocation | One indexed lookup per request |
 | Strict Mode off | Single-use WS tokens survive dev double-mount | Lose Strict Mode's extra dev checks |
 
 ## 17. How the system could scale
@@ -192,13 +195,21 @@ Meeting status: `scheduled → live` on the first connect. `live → ended` when
 3. Introduce **Alembic** for migrations and generate the initial migration from the models.
 4. Optionally switch naive-UTC columns to `TIMESTAMPTZ`.
 
-## 19. Adding authentication
+## 19. Authentication (implemented as the bonus)
 
-1. Add `password_hash` to `users` (or use an OAuth provider).
-2. Add `/auth/signup` and `/auth/login` endpoints that issue a JWT or session cookie.
-3. Replace the body of **`get_current_user()`** in `api/deps.py` to verify the token. Every route and service already depends on it, so nothing else changes.
-4. `POST /start` already checks `meeting.host_id == current_user.id`, so with real users only the real host can start.
-5. Frontend: `CurrentUserProvider` already loads `/users/me`. Add login pages and send credentials (cookie or `Authorization` header) from `apiRequest`.
+**How it works:**
+1. **Sign-up:** `POST /auth/signup` → `AuthService.signup()`. The email is lower-cased (UNIQUE and case-insensitive) and the password is hashed with **salted scrypt** (`core/security.py`). A session starts immediately.
+2. **Sessions:** a random token (`secrets.token_urlsafe(32)`) goes to the client **once**. The server stores only its **SHA-256** in `auth_sessions` with `expires_at` (30 days).
+3. **Every request:** `get_current_user()` (in `api/deps.py`) reads `Authorization: Bearer`, hashes it, and looks up an unexpired session. If there isn't one, it returns 401 `NOT_AUTHENTICATED`. `get_optional_user()` is used where guests are allowed (`/join`).
+4. **Logout:** deletes the session row, so the token is **really revoked**, not just forgotten by the browser.
+5. **Frontend:** `AuthProvider` restores the session on load (`/users/me`), exposes `login` / `signup` / `logout`, and listens for an "auth expired" event that `apiRequest` fires on any 401. `RequireAuth` guards Home and Meetings and redirects to `/login?next=…`. `safeNextPath()` only allows same-site paths, which prevents open redirects.
+
+**Talking points:**
+- **Why not a cookie?** The frontend is on vercel.app and the API on onrender.com, which are different sites, so a session cookie would be a **third-party cookie**, and Safari, Firefox and modern Chrome block those. Trade-off: `localStorage` is readable by XSS. The fix would be putting the API behind the same domain (a Vercel rewrite/proxy) and switching to an HttpOnly cookie.
+- **Why a sessions table instead of a JWT?** Stateless JWTs can't be revoked before they expire. A DB lookup per request is cheap at this scale, and logout actually works.
+- **Why scrypt?** It's memory-hard (it resists GPU cracking), it's in the Python standard library (no bcrypt dependency), and the parameters are stored in the hash so they can be raised later.
+- **Account enumeration:** login verifies against a dummy hash when the email is unknown, and returns the *same* error for a wrong email and a wrong password.
+- **Why guests don't need accounts:** that's Zoom's model. Invite links work for anyone, and hosting needs an account. `POST /start` checks `meeting.host_id == current_user.id`, so only the real host can start a meeting. A test and an E2E step cover this.
 
 ## 20. Handling higher traffic
 

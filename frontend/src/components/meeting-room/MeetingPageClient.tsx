@@ -5,11 +5,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { meetingsApi } from "@/lib/api/meetings";
-import { useCurrentUser } from "@/providers/CurrentUserProvider";
+import { useCurrentUser } from "@/providers/AuthProvider";
 import type { MeetingPreview } from "@/types/meeting";
 import type { ExitStatus } from "./MeetingRoom";
 import { MeetingSession } from "./MeetingSession";
 import { MeetingStatusScreen } from "./MeetingStatusScreen";
+import { loginHref, useReturnPath } from "@/components/auth/RequireAuth";
 
 type Phase =
   | { kind: "loading" }
@@ -28,8 +29,15 @@ const EXIT_TITLES: Record<ExitStatus, string> = {
 export function MeetingPageClient({ code }: { code: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useCurrentUser();
+  const { user, loading: authLoading } = useCurrentUser();
+  const returnPath = useReturnPath();
   const isHost = searchParams.get("host") === "1";
+  // Guests may join with just a link; starting a meeting as host requires sign-in.
+  const needsSignIn = isHost && !authLoading && !user;
+
+  useEffect(() => {
+    if (needsSignIn) router.replace(loginHref(returnPath));
+  }, [needsSignIn, router, returnPath]);
   const passcodeFromLink = searchParams.get("pwd") ?? "";
   const nameFromJoinForm = searchParams.get("name") ?? "";
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
@@ -61,13 +69,16 @@ export function MeetingPageClient({ code }: { code: string }) {
     [isHost, router],
   );
 
+  const spinner = (
+    <div className="flex min-h-dvh items-center justify-center bg-room">
+      <span className="size-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+    </div>
+  );
+  if (isHost && (authLoading || !user)) return spinner;
+
   switch (phase.kind) {
     case "loading":
-      return (
-        <div className="flex min-h-dvh items-center justify-center bg-room">
-          <span className="size-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-        </div>
-      );
+      return spinner;
     case "unavailable":
       return <MeetingStatusScreen title={phase.title} message={phase.message} />;
     case "exited": {

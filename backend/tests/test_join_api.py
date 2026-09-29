@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.clock import utc_now
-from app.core.security import generate_passcode
+from app.core.security import generate_passcode, hash_password
 from app.models import Meeting, MeetingStatus, MeetingType, User
 
 
@@ -20,6 +20,11 @@ class TestJoinMeeting:
         assert body["participant"]["status"] == "pending"
         assert body["token"]
         assert body["meeting"]["meeting_code"] == instant_meeting["meeting_code"]
+
+    def test_guest_can_join_without_signing_in(self, guest_client, instant_meeting):
+        response = join(guest_client, instant_meeting["meeting_code"], "Guest", instant_meeting["passcode"])
+        assert response.status_code == 201
+        assert response.json()["participant"]["role"] == "attendee"
 
     def test_join_accepts_formatted_meeting_id(self, client, instant_meeting):
         response = join(client, instant_meeting["formatted_code"], passcode=instant_meeting["passcode"])
@@ -60,7 +65,7 @@ class TestStartMeeting:
         assert response.json()["participant"]["role"] == "host"
 
     def test_non_host_cannot_start(self, client, db):
-        other = User(name="Someone Else", email="other@example.com")
+        other = User(name="Someone Else", email="other@example.com", password_hash=hash_password("secret123"))
         db.add(other)
         db.flush()
         now = utc_now()

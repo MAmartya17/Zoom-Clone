@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import utc_now
 from app.core.config import Settings, get_settings
-from app.core.security import generate_passcode, generate_session_token, hash_token
+from app.core.security import generate_passcode, generate_session_token, hash_password, hash_token
 from app.models import (
     ChatMessage,
     Meeting,
@@ -137,8 +137,19 @@ def _add_attendance(db: Session, host: User, meeting: Meeting, spec: SeedMeeting
         )
 
 
+SECOND_DEMO_USER = ("Priya Sharma", "priya.sharma@example.com")
+
+
+def _seed_second_user(db: Session, settings: Settings) -> None:
+    """A second account to demo that only the host can start their meeting."""
+    name, email = SECOND_DEMO_USER
+    if db.scalar(select(User.id).where(User.email == email)) is None:
+        db.add(User(name=name, email=email, password_hash=hash_password(settings.default_user_password)))
+
+
 def seed(db: Session, settings: Settings) -> None:
     host = UserService(db).get_or_create_default_user(settings)
+    _seed_second_user(db, settings)
     now = utc_now()
     for spec in [*UPCOMING, *RECENT, *CANCELLED]:
         meeting = _build_meeting(host, spec, now)

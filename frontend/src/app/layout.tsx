@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Lato } from "next/font/google";
-import { CurrentUserProvider } from "@/providers/CurrentUserProvider";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import "./globals.css";
 
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={lato.variable}>
       <body className="font-sans">
         <ToastProvider>
-          <CurrentUserProvider>{children}</CurrentUserProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ToastProvider>
       </body>
     </html>

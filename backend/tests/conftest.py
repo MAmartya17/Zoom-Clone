@@ -12,6 +12,7 @@ from app.db.base import Base
 from app.db.session import build_engine, get_db
 from app.main import create_app
 from app.realtime.room_manager import RoomManager
+from app.services.user_service import UserService
 
 TEST_APP_URL = "http://app.test"
 
@@ -42,7 +43,7 @@ def db(session_factory) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(settings, session_factory) -> Iterator[TestClient]:
+def app(settings, session_factory):
     app = create_app(settings, init_db=False)
     rooms = RoomManager()
 
@@ -54,7 +55,28 @@ def client(settings, session_factory) -> Iterator[TestClient]:
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[get_room_manager] = lambda: rooms
+    return app
+
+
+@pytest.fixture
+def guest_client(app) -> Iterator[TestClient]:
+    """Not signed in (e.g. someone who only has an invite link)."""
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def client(app, settings, session_factory) -> Iterator[TestClient]:
+    """Signed in as the seeded demo host (Alex Morgan)."""
+    with session_factory() as db:
+        UserService(db).get_or_create_default_user(settings)
+    with TestClient(app) as test_client:
+        response = test_client.post(
+            "/api/v1/auth/login",
+            json={"email": settings.default_user_email, "password": settings.default_user_password},
+        )
+        assert response.status_code == 200, response.text
+        test_client.headers["Authorization"] = f"Bearer {response.json()['token']}"
         yield test_client
 
 

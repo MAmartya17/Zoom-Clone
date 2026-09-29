@@ -72,6 +72,24 @@ class InvalidSession(DomainError):
     message = "Your meeting session is invalid or has expired. Please join again."
 
 
+class NotAuthenticated(DomainError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "NOT_AUTHENTICATED"
+    message = "Please sign in to continue."
+
+
+class InvalidCredentials(DomainError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "INVALID_CREDENTIALS"
+    message = "Incorrect email or password."
+
+
+class EmailAlreadyRegistered(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "EMAIL_TAKEN"
+    message = "An account with this email already exists."
+
+
 class MeetingCodeGenerationFailed(DomainError):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "MEETING_CODE_UNAVAILABLE"

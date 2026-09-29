@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import get_current_user, get_room_manager
+from app.api.deps import get_current_user, get_optional_user, get_room_manager
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.models import User
@@ -124,7 +124,7 @@ def start_meeting(
 def join_meeting(
     meeting_code: str,
     body: JoinMeetingRequest,
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):

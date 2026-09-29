@@ -2,12 +2,12 @@
 
 import { Bell, Calendar, Home, LogOut, MessageSquare, PenLine, Search, Settings, User as UserIcon, Users, Video } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Menu } from "@/components/ui/Menu";
 import { cn } from "@/lib/cn";
-import { useCurrentUser } from "@/providers/CurrentUserProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { ZoomLogo } from "./ZoomLogo";
 
@@ -28,9 +28,16 @@ const NAV_ITEMS: NavItem[] = [
 
 export function TopNav() {
   const pathname = usePathname();
-  const { user } = useCurrentUser();
+  const router = useRouter();
+  const { user, loading, logout } = useAuth();
   const toast = useToast();
   const comingSoon = (feature: string) => toast.info(`${feature} is not part of this demo.`);
+
+  const signOut = async () => {
+    await logout();
+    toast.success("You have signed out");
+    router.push("/login");
+  };
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white">
@@ -77,14 +84,14 @@ export function TopNav() {
           <IconAction label="Settings" onClick={() => comingSoon("Settings")}>
             <Settings className="size-5" />
           </IconAction>
-          <Menu
-            items={[
-              { label: "Profile", icon: <UserIcon className="size-4" />, onSelect: () => comingSoon("Profile") },
-              { label: "Settings", icon: <Settings className="size-4" />, onSelect: () => comingSoon("Settings") },
-              { label: "Sign out", icon: <LogOut className="size-4" />, onSelect: () => comingSoon("Sign out") },
-            ]}
-            header={
-              user && (
+          {user ? (
+            <Menu
+              items={[
+                { label: "Profile", icon: <UserIcon className="size-4" />, onSelect: () => comingSoon("Profile") },
+                { label: "Settings", icon: <Settings className="size-4" />, onSelect: () => comingSoon("Settings") },
+                { label: "Sign out", icon: <LogOut className="size-4" />, onSelect: signOut },
+              ]}
+              header={
                 <div className="flex items-center gap-3 border-b border-line px-4 pb-3 pt-2">
                   <Avatar name={user.name} />
                   <div className="min-w-0">
@@ -92,14 +99,28 @@ export function TopNav() {
                     <p className="truncate text-xs text-ink-muted">{user.email}</p>
                   </div>
                 </div>
-              )
-            }
-            trigger={({ toggle }) => (
-              <button onClick={toggle} aria-label="Profile menu" className="ml-1 rounded-full ring-offset-2 hover:ring-2 hover:ring-line">
-                <Avatar name={user?.name ?? "?"} size="sm" />
-              </button>
-            )}
-          />
+              }
+              trigger={({ toggle }) => (
+                <button onClick={toggle} aria-label="Profile menu" className="ml-1 rounded-full ring-offset-2 hover:ring-2 hover:ring-line">
+                  <Avatar name={user.name} size="sm" />
+                </button>
+              )}
+            />
+          ) : (
+            !loading && (
+              <div className="ml-1 flex items-center gap-2">
+                <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-bold text-zoom-blue hover:bg-zoom-blue-soft">
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="hidden rounded-lg bg-zoom-blue px-3 py-2 text-sm font-bold text-white hover:bg-zoom-blue-hover sm:block"
+                >
+                  Sign Up Free
+                </Link>
+              </div>
+            )
+          )}
         </div>
       </div>
 

@@ -7,7 +7,7 @@ import { TextField } from "@/components/ui/FormField";
 import { errorMessage } from "@/lib/api/client";
 import { meetingsApi } from "@/lib/api/meetings";
 import { DISPLAY_NAME_MAX, validateDisplayName, validateMeetingInput } from "@/lib/validation/joinForm";
-import { useCurrentUser } from "@/providers/CurrentUserProvider";
+import { useCurrentUser } from "@/providers/AuthProvider";
 
 interface JoinMeetingFormProps {
   onCancel?: () => void;

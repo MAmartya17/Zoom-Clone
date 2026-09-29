@@ -8,7 +8,9 @@ A functional clone of the Zoom web app: start instant meetings, join by Meeting 
 | **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0, Pydantic v2 |
 | **Database** | SQLite (portable schema, FK + CHECK constraints) |
 | **Realtime** | FastAPI WebSockets (signaling + presence) · WebRTC mesh (media) |
-| **Tests** | pytest (56 backend) · Vitest (51 frontend) · Playwright two-browser E2E (19 steps, run locally) |
+| **Tests** | pytest (77 backend) · Vitest (66 frontend) · Playwright two-browser E2E (23 steps, run locally) |
+
+> **Demo login:** `alex.morgan@example.com` / `demo1234` (a "Use demo account" button is on the sign-in page). A second account, `priya.sharma@example.com` / `demo1234`, shows that non-hosts can't start someone else's meeting. Guests can join any meeting from an invite link **without** an account.
 
 ---
 
@@ -25,7 +27,7 @@ A functional clone of the Zoom web app: start instant meetings, join by Meeting 
 - **Host controls** — *Mute All*, mute one participant, *Remove participant* (server-enforced; the removed session cannot reconnect), *End Meeting for All*.
 - **Responsive design** — desktop, tablet and mobile layouts (dashboard, modals as bottom sheets, full-screen side panels in the room).
 - **Screen sharing** (spotlight layout), **in-meeting chat** (persisted), **Meetings page** (Upcoming / Previous tabs), Zoom keyboard shortcuts (`Alt+A`, `Alt+V`).
-- **Login/Signup** — intentionally not built (the brief says to assume a logged-in default user); an auth seam is in place (see [Assumptions](#assumptions)).
+- **User authentication (Login / Signup / Sign out)**: Zoom-style sign-in and sign-up pages, a demo-account shortcut, and protected Home/Meetings pages that redirect to `/login?next=…` and return you afterwards. Sessions are revocable, so signing out invalidates the token on the server. Passwords are hashed with salted **scrypt**. Guests can still join by link without an account, as in Zoom.
 
 ---
 
@@ -60,6 +62,8 @@ FastAPI                                                                         
 | WebRTC **mesh** + WebSocket signaling | Real peer-to-peer media with no paid media servers. The server relays only small signaling messages. Suits small meetings (≈2–6 people); an SFU is the scaling path. |
 | Newcomer always sends the offer | Avoids WebRTC "glare" (both sides offering) without implementing full perfect negotiation. Every connection has one audio + one video transceiver, so camera ↔ screen share uses `replaceTrack()` with no renegotiation. |
 | In-memory `RoomManager` | Live sockets are process-local by nature; the DB stores durable facts (attendance, chat). Scaling out = Redis pub/sub. |
+| Bearer token in `localStorage` (not a cookie) | Frontend (vercel.app) and API (onrender.com) are different sites, so a session cookie would be a third-party cookie, which Safari, Firefox and Chrome block. The token is sent in `Authorization: Bearer …`. Server-side `auth_sessions` rows make logout a real revocation. |
+| scrypt from the standard library | A memory-hard password hash with no extra dependency (no bcrypt/passlib). |
 | No Redux / React Query / date library / UI kit | Global state is only "current user" + toasts (Context). Room state is a pure reducer. Two dashboard queries don't justify a cache library. `Intl` covers date/time-zone needs. A UI kit would look like the kit, not like Zoom. |
 
 ---
@@ -79,7 +83,7 @@ FastAPI                                                                         
 │   │   ├── repositories/          # SQL queries per aggregate
 │   │   ├── services/              # meeting_service, participant_service, chat_service, meeting_code
 │   │   ├── realtime/              # room_manager.py, connection_handler.py
-│   │   └── api/                   # deps.py (DI + auth seam), v1/ (meetings, users, ws routers)
+│   │   └── api/                   # deps.py (DI: db, current/optional user), v1/ (auth, meetings, users, ws routers)
 │   ├── tests/                     # pytest: API, validation, lifecycle, WebSocket protocol
 │   ├── requirements.txt / requirements-dev.txt / .env.example / pytest.ini
 ├── frontend/
@@ -95,7 +99,7 @@ FastAPI                                                                         
 │       │                          #   (VideoGrid, VideoTile, ControlBar, ParticipantsPanel, ChatPanel, …)
 │       ├── hooks/                 # useMeetingRoom, useMediaDevices, useMeetingLists, useSpeaking, …
 │       ├── lib/                   # api/, realtime/, validation/, datetime, meetingCode, galleryLayout, config
-│       ├── providers/             # CurrentUserProvider (auth seam), ToastProvider
+│       ├── providers/             # AuthProvider (login/signup/logout, session restore), ToastProvider
 │       └── types/                 # API + WebSocket protocol types (mirror backend schemas)
 ├── docs/INTERVIEW_GUIDE.md        # architecture walkthrough & design rationale
 └── render.yaml                    # Render blueprint for the backend
@@ -106,12 +110,14 @@ FastAPI                                                                         
 ## Database design
 
 ```
-users 1 ──── N meetings 1 ──── N participants N ──── 0..1 users   (guests have no user)
-                   │ 1                 │ 1
-                   └──── N chat_messages N ┘
+auth_sessions N ──── 1 users 1 ──── N meetings 1 ──── N participants N ──── 0..1 users   (guests have no user)
+                                         │ 1                 │ 1
+                                         └──── N chat_messages N ┘
 ```
 
-**users** — `id` PK · `name` · `email` UNIQUE · timestamps
+**users**: `id` PK · `name` · `email` UNIQUE (stored lower-case) · `password_hash` (`scrypt$N$r$p$salt$hash`) · timestamps
+
+**auth_sessions**: `id` PK · `user_id` **FK → users** ON DELETE CASCADE · `token_hash` UNIQUE (SHA-256 of the bearer token) · `created_at` · `expires_at` (30 days). Logout deletes the row; expired rows are pruned on login.
 
 **meetings**
 | column | notes |
@@ -153,18 +159,23 @@ scheduled ──first participant connects──► live ──host "End for all
 
 Base URL: `/api/v1` · interactive docs at **`/docs`** (Swagger) · health check `GET /health`.
 
+🔒 = requires `Authorization: Bearer <token>` (401 `NOT_AUTHENTICATED` otherwise).
+
 | Method | Path | Purpose | Success | Errors |
 |---|---|---|---|---|
-| GET | `/users/me` | Current (default) user | 200 | |
-| GET | `/meetings?scope=upcoming\|recent&limit=20` | Dashboard lists | 200 `MeetingDetail[]` | 422 |
-| POST | `/meetings/instant` | New Meeting | 201 `MeetingDetail` | |
-| POST | `/meetings` | Schedule | 201 `MeetingDetail` | 422 |
-| PATCH | `/meetings/{code}` | Edit scheduled meeting | 200 | 403, 404, 409 |
-| DELETE | `/meetings/{code}` | Cancel | 204 | 403, 404, 409 |
+| POST | `/auth/signup` | `{name, email, password}` → account + token | 201 `{user, token}` | 409 `EMAIL_TAKEN`, 422 |
+| POST | `/auth/login` | `{email, password}` → token | 200 `{user, token}` | 401 `INVALID_CREDENTIALS` |
+| POST | `/auth/logout` 🔒 | Revoke this token | 204 | 401 |
+| GET | `/users/me` 🔒 | Signed-in user | 200 | 401 |
+| GET | `/meetings?scope=upcoming\|recent&limit=20` 🔒 | Dashboard lists (own meetings) | 200 `MeetingDetail[]` | 422 |
+| POST | `/meetings/instant` 🔒 | New Meeting | 201 `MeetingDetail` | |
+| POST | `/meetings` 🔒 | Schedule | 201 `MeetingDetail` | 422 |
+| PATCH | `/meetings/{code}` 🔒 | Edit scheduled meeting | 200 | 403, 404, 409 |
+| DELETE | `/meetings/{code}` 🔒 | Cancel | 204 | 403, 404, 409 |
 | GET | `/meetings/{code}` | Validate ID before joining (no passcode) | 200 `MeetingPublic` | 404, 410 |
-| POST | `/meetings/{code}/start` | Host enters → session token | 201 `JoinSession` | 403, 404, 410 |
-| POST | `/meetings/{code}/join` | Attendee enters `{display_name, passcode}` | 201 `JoinSession` | 403, 404, 410, 422 |
-| POST | `/meetings/{code}/end` | Host ends for everyone | 200 | 403, 404, 409 |
+| POST | `/meetings/{code}/start` 🔒 | Host enters → session token | 201 `JoinSession` | 403, 404, 410 |
+| POST | `/meetings/{code}/join` | Attendee (guest or signed in) `{display_name, passcode}` | 201 `JoinSession` | 403, 404, 410, 422 |
+| POST | `/meetings/{code}/end` 🔒 | Host ends for everyone | 200 | 403, 404, 409 |
 | GET | `/meetings/{code}/participants?active_only=true` | Participant list | 200 | 404 |
 | GET | `/meetings/{code}/messages` | Chat history | 200 | 404 |
 
@@ -183,7 +194,7 @@ Validation: title 1–200 chars (trimmed) · description ≤ 2000 · `start_time
 { "error": { "code": "VALIDATION_ERROR", "message": "Start time must be in the future.",
              "details": { "start_time": "Start time must be in the future." } } }
 ```
-Codes: `VALIDATION_ERROR` 422 · `MEETING_NOT_FOUND` 404 · `MEETING_ENDED` / `MEETING_CANCELLED` 410 · `INVALID_PASSCODE` 403 · `NOT_HOST` 403 · `INVALID_MEETING_STATE` 409 · `INTERNAL_ERROR` 500 (logged, no stack trace).
+Codes: `VALIDATION_ERROR` 422 · `NOT_AUTHENTICATED` / `INVALID_CREDENTIALS` 401 · `EMAIL_TAKEN` 409 · `MEETING_NOT_FOUND` 404 · `MEETING_ENDED` / `MEETING_CANCELLED` 410 · `INVALID_PASSCODE` 403 · `NOT_HOST` 403 · `INVALID_MEETING_STATE` 409 · `INTERNAL_ERROR` 500 (logged, no stack trace).
 
 ### WebSocket protocol — `WS /ws/meetings/{code}?token=<JoinSession.token>`
 The token is **single-use**: it authenticates exactly one socket.
@@ -226,7 +237,7 @@ cp .env.example .env.local           # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev                          # http://localhost:3000
 ```
 
-**Try it:** click **New Meeting**, open the meeting info (green shield), copy the invite link and open it in a second browser profile or an incognito window. Both participants see and hear each other.
+**Try it:** sign in with the demo account, click **New Meeting**, open the meeting info (green shield), copy the invite link and open it in an incognito window (no sign-in needed there). Both participants see and hear each other.
 
 ### Environment variables
 
@@ -237,6 +248,8 @@ npm run dev                          # http://localhost:3000
 | `PUBLIC_APP_URL` | `http://localhost:3000` | Frontend base URL used in invite links |
 | `SEED_ON_STARTUP` | `true` | Seed demo data when the DB is empty |
 | `EMPTY_ROOM_GRACE_SECONDS` | `60` | Empty live meetings end after this delay |
+| `DEFAULT_USER_PASSWORD` | `demo1234` | Password of the seeded demo accounts |
+| `AUTH_SESSION_DAYS` | `30` | Sign-in session lifetime |
 
 | Frontend (`frontend/.env.local`) | Default | Purpose |
 |---|---|---|
@@ -245,20 +258,20 @@ npm run dev                          # http://localhost:3000
 | `NEXT_PUBLIC_ICE_SERVERS` | Google STUN | JSON `RTCIceServer[]` (add TURN here) |
 
 ### Database & seed data
-Tables are created automatically on startup, and demo data is seeded when the DB is empty. To reset manually: `python -m app.seed --reset`. The seed contains the default user (**Alex Morgan**), 5 upcoming meetings, 5 past meetings with attendance and chat history, and 1 cancelled meeting (hidden from the lists).
+Tables are created automatically on startup, and demo data is seeded when the DB is empty. To reset manually: `python -m app.seed --reset`. If you have a database file from before sign-in was added, the server refuses to start and tells you to run `--reset`, because `create_all` can't add columns. The seed contains two accounts (**Alex Morgan**, the host of all demo meetings, and **Priya Sharma**, both with password `demo1234`), 5 upcoming meetings, 5 past meetings with attendance and chat history, and 1 cancelled meeting (hidden from the lists).
 
 ---
 
 ## Testing
 
 ```bash
-cd backend  && pytest                 # 56 tests: REST, validation, lifecycle, WebSocket protocol
-cd frontend && npm test               # 51 tests: parsing, time zones, validation, room reducer, layout
+cd backend  && pytest                 # 77 tests: auth, REST, validation, lifecycle, WebSocket protocol
+cd frontend && npm test               # 66 tests: parsing, time zones, validation, auth redirects, room reducer, layout
 cd frontend && npm run lint && npm run typecheck
 ```
 - **Backend:** every test gets an isolated in-memory SQLite database via FastAPI dependency overrides. Tests cover unique IDs and collision retry, schedule validation, Upcoming/Recent filtering, join errors (404/410/403/422), host-only start, the full WebSocket protocol (targeted signal relay, media state, chat persistence, mute all, remove plus token reuse, end for all), and malformed messages.
 - **Frontend:** pure logic without a browser: invite-link parsing, DST-aware time-zone conversion, form validation, the room state machine, and the gallery layout algorithm.
-- **End-to-end (manual/local):** a Playwright script drove two Chromium browsers with fake camera/mic through dashboard → schedule → invalid ID → new meeting → join with wrong/right passcode → **two-way video** → chat → camera off → screen share → mute all → remove → join via link → end for all → responsive mobile. All 19 steps passed. The script is not committed because it needs a Playwright browser download.
+- **End-to-end (manual/local):** a Playwright script drove two Chromium browsers with fake camera/mic through sign-in redirect and wrong password → dashboard → schedule → invalid ID → new meeting → guest (not signed in) joins with wrong/right passcode → **two-way video** → chat → camera off → screen share → mute all → remove → join via link → end for all → sign-up → non-host blocked from starting → sign out → responsive mobile. All 23 steps passed. The script is not committed because it needs a Playwright browser download.
 
 ---
 
@@ -279,7 +292,7 @@ cd frontend && npm run lint && npm run typecheck
 ---
 
 ## Assumptions
-- **No authentication** (per the brief). The default user is resolved by `get_current_user()` in `backend/app/api/deps.py`, which is the single seam where real auth (JWT/session) would plug in. Because every browser is "the default user" today, **host vs attendee is decided by the entry path**: `POST /start` (host-only, checked against `meeting.host_id`) vs `POST /join` (always an attendee). Dashboard *New Meeting / Start* uses the first; *Join* and invite links use the second.
+- **Authentication.** The brief says login isn't required, but it's listed as a bonus, so it's included with demo accounts to keep evaluation friction-free. Hosting (dashboard, schedule, start, end) requires sign-in. **Joining never does**: guests enter with just a name and the passcode, as in Zoom. The host role comes from the entry path: `POST /start` checks `meeting.host_id == current_user.id`, and `POST /join` always creates an attendee.
 - Meetings always have a passcode (Zoom's default). Invite links embed it, so link joins aren't prompted.
 - Times are stored in UTC and displayed in the browser's time zone. The scheduler interprets the chosen date/time in the chosen time zone.
 - An ended meeting's ID cannot be reused (410 Gone). A live meeting auto-ends 60 s after the last person leaves, so a page refresh doesn't kill it.
@@ -292,4 +305,6 @@ cd frontend && npm run lint && npm run typecheck
 - **Host leaving without ending** leaves the meeting running without a host (Zoom would ask you to assign a new host).
 - "Stop video" disables the camera track (black frames, avatar shown) rather than releasing the camera hardware.
 - Only one participant can share their screen at a time (Zoom's default).
-- No rate limiting on passcode attempts yet.
+- No rate limiting on passcode or login attempts yet.
+- The auth token lives in `localStorage` (needed for cross-site hosting), so it's exposed to any XSS. React escapes output and the app renders no raw HTML, but an HttpOnly cookie behind a same-domain API proxy would be stronger.
+- No email verification, password reset, or OAuth ("Sign in with Google").

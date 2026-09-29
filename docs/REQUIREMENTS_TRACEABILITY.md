@@ -36,7 +36,7 @@ Test evidence: **B** = backend pytest, **F** = frontend Vitest, **E2E** = the lo
 | Responsive design | Tailwind breakpoints; mobile nav; modals become bottom sheets; room panels go full-screen; gallery best-fit layout (`lib/galleryLayout.ts`) | F `galleryLayout.test.ts`, E2E mobile screenshots |
 | Host controls: mute all | WS `mute_all` → `require_host` → `force_mute` broadcast | B `test_host_mute_all…`, `test_attendee_cannot_use_host_controls`, E2E |
 | Host controls: remove participant | WS `remove_participant` → status `removed`, close 4403, token unusable | B `test_host_removes_participant`, E2E |
-| User authentication | **Not built by design** (the brief says "No Login Required"); seam: `api/deps.py::get_current_user`, `CurrentUserProvider` | — |
+| User authentication (Login/Signup) | Backend: `api/v1/auth.py`, `services/auth_service.py` (scrypt hashing, DB sessions, revocable logout), `api/deps.py::get_current_user` / `get_optional_user`, `auth_sessions` table. Frontend: `/login`, `/signup`, `AuthProvider`, `RequireAuth`, TopNav sign-in/sign-out | B `test_auth.py` (21 tests), F `auth.test.ts`, E2E (redirect, bad password, sign-up, non-host blocked, sign-out) |
 
 Extras beyond the brief: end meeting for all, screen share, persisted chat, Meetings page, active-speaker highlight, meeting info popover, keyboard shortcuts.
 
@@ -45,7 +45,7 @@ Extras beyond the brief: end meeting for all, screen share, persisted chat, Meet
 | Note | How it's met |
 |---|---|
 | Resemble Zoom's design | Zoom Workplace layout: top nav, orange/blue action tiles, clock card, dark meeting room, bottom toolbar, green share button, red End |
-| No login: assume a default user | Seeded "Alex Morgan"; `get_current_user` returns it |
+| No login: assume a default user | Seeded demo account "Alex Morgan" with one-click "Use demo account" sign-in; guests join by link without any account |
 | Seed the database | `app/seed.py` (upcoming, recent with attendance + chat, cancelled); auto-seed on empty DB |
 | Design your own schema | See README "Database design" and `backend/app/models/` |
 | README: setup, tech stack, assumptions | `README.md` |
@@ -55,11 +55,11 @@ Extras beyond the brief: end meeting for all, screen share, persisted chat, Meet
 ## Final audit checklist
 
 - [x] Every mandatory feature implemented (table above)
-- [x] Bonus features: responsive, mute all, remove participant (auth intentionally skipped, per the brief)
+- [x] Bonus features: responsive design, login/signup/sign-out, mute all, remove participant
 - [x] Dashboard · New Meeting · unique ID · invite link · join (ID + link) · validation · display name
 - [x] Schedule meeting · Upcoming · Recent · meeting room · participants · meeting controls
 - [x] Database persistence · seed data · validation (both sides) · consistent error handling
-- [x] Tests: 56 backend + 51 frontend passing; 19-step two-browser E2E passing locally
+- [x] Tests: 77 backend + 66 frontend passing; 23-step two-browser E2E passing locally
 - [x] README with setup, environment variables, API, schema, deployment, assumptions, limitations
 - [x] No unnecessary dependencies (frontend runtime deps: next, react, react-dom, lucide-react)
 - [x] No duplicated business logic (rules live in services / model lifecycle methods; the frontend mirrors validation only for UX)

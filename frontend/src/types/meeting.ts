@@ -11,6 +11,11 @@ export interface User {
   email: string;
 }
 
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
 export interface MeetingSettings {
   mute_on_entry: boolean;
   host_video_on: boolean;

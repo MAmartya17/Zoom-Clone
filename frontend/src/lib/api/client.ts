@@ -1,3 +1,4 @@
+import { AUTH_EXPIRED_EVENT, tokenStorage } from "@/lib/auth/tokenStorage";
 import { config } from "@/lib/config";
 
 export class ApiError extends Error {
@@ -40,13 +41,21 @@ async function toApiError(response: Response): Promise<ApiError> {
   }
 }
 
-/** Single place that talks HTTP: JSON encoding, error normalization, network failures. */
+function buildHeaders(hasBody: boolean): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (hasBody) headers["Content-Type"] = "application/json";
+  const token = tokenStorage.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+/** Single place that talks HTTP: auth header, JSON encoding, error normalization, network failures. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(buildUrl(path, options.query), {
       method: options.method ?? "GET",
-      headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      headers: buildHeaders(options.body !== undefined),
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
     });
@@ -55,7 +64,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(0, "NETWORK_ERROR", "Unable to reach the server. Check your connection and try again.");
   }
 
-  if (!response.ok) throw await toApiError(response);
+  if (!response.ok) {
+    const error = await toApiError(response);
+    // A stored token that the server no longer accepts: sign the user out everywhere.
+    if (error.code === "NOT_AUTHENTICATED" && tokenStorage.get()) {
+      tokenStorage.clear();
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+    throw error;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
