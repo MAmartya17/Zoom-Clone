@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Zoom design tokens (brand refresh palette). */
+@theme {
+  --font-sans: var(--font-lato), "Segoe UI", Helvetica, Arial, sans-serif;
+
+  --color-zoom-blue: #0b5cff;
+  --color-zoom-blue-hover: #0048d6;
+  --color-zoom-blue-soft: #e8f0ff;
+  --color-zoom-orange: #ff742e;
+  --color-zoom-orange-hover: #f0621b;
+  --color-zoom-green: #00a15d;
+  --color-zoom-red: #e02828;
+  --color-zoom-red-hover: #c41f1f;
+
+  --color-ink: #232333;
+  --color-ink-muted: #6e7680;
+  --color-line: #e4e6eb;
+  --color-surface: #f7f9fa;
+
+  /* In-meeting dark theme */
+  --color-room: #1a1a1a;
+  --color-room-tile: #242424;
+  --color-room-panel: #1f1f1f;
+  --color-room-hover: #333333;
+  --color-room-line: #3a3a3a;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mirror the local camera like Zoom's self view. */
+.mirror {
+  transform: scaleX(-1);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c7d0 transparent;
+}
+
+.room-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4a4a4a transparent;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 160ms ease-out;
+}

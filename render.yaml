@@ -1,0 +1,23 @@
+# Render Blueprint for the FastAPI backend (https://render.com/docs/blueprint-spec).
+# The frontend is deployed separately on Vercel.
+services:
+  - type: web
+    name: zoom-clone-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: DATABASE_URL
+        value: sqlite:///./zoom_clone.db
+      - key: SEED_ON_STARTUP
+        value: "true"
+      # Set both to your Vercel URL, e.g. https://zoom-clone.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
