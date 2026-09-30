@@ -7,7 +7,6 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import type { MediaDevices } from "@/hooks/useMediaDevices";
 import { useMeetingRoom } from "@/hooks/useMeetingRoom";
 import { formatElapsed } from "@/lib/datetime";
-import { supportsScreenShare } from "@/lib/device";
 import { orderedParticipants, type RoomStatus } from "@/lib/realtime/roomReducer";
 import { useToast } from "@/providers/ToastProvider";
 import type { JoinSession } from "@/types/meeting";
@@ -16,6 +15,7 @@ import { ChatPanel } from "./ChatPanel";
 import { ControlBar } from "./ControlBar";
 import { MeetingInfoButton } from "./MeetingInfoButton";
 import { ParticipantsPanel } from "./ParticipantsPanel";
+import { ScreenShareUnavailableDialog } from "./ScreenShareUnavailableDialog";
 import { VideoGrid } from "./VideoGrid";
 
 export type ExitStatus = Exclude<RoomStatus, "connecting" | "connected">;
@@ -34,8 +34,7 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
   const [panel, setPanel] = useState<Panel>(null);
   const [seenMessages, setSeenMessages] = useState(0);
   const [joinedAt] = useState(() => Date.now());
-  // Phones can't capture their screen from a browser; hide the button there.
-  const [canShareScreen] = useState(supportsScreenShare);
+  const [shareUnavailableOpen, setShareUnavailableOpen] = useState(false);
   const now = useClock(1000);
   const isHost = session.participant.role === "host";
 
@@ -86,7 +85,7 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
     const other = participants.find((p) => p.screen && p.id !== state.selfId);
     if (other) return toast.info(`${other.display_name} is sharing. Only one participant can share at a time.`);
     const result = await media.startScreenShare();
-    if (result === "unsupported") toast.error("Screen sharing isn't supported in this browser. Use Chrome, Edge or Firefox on a computer.");
+    if (result === "unsupported") setShareUnavailableOpen(true);
     if (result === "failed") toast.error("Couldn't start screen sharing. Check your browser's screen-recording permission.");
   };
 
@@ -142,7 +141,6 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
         audioOn={media.audioEnabled}
         videoOn={media.videoEnabled}
         sharing={sharing}
-        canShareScreen={canShareScreen}
         participantCount={participants.length}
         unreadChat={panel === "chat" ? 0 : state.messages.length - seenMessages}
         activePanel={panel}
@@ -154,6 +152,7 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
         onLeave={actions.leave}
         onEndForAll={actions.endMeeting}
       />
+      <ScreenShareUnavailableDialog open={shareUnavailableOpen} onClose={() => setShareUnavailableOpen(false)} />
     </div>
   );
 }

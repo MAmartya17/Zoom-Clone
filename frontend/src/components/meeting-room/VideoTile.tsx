@@ -25,10 +25,11 @@ export function VideoTile({ name, stream, audioOn, videoOn, isSelf = false, isHo
   const [sourcePortrait, setSourcePortrait] = useState<boolean | null>(null);
   const speaking = useSpeaking(stream, audioOn);
 
-  // Crop to fill when the video and tile have the same orientation; otherwise
-  // show the whole frame (e.g. a portrait phone camera in a landscape tile).
+  // Cameras always fill their tile (cropping edges, like Zoom), except a
+  // portrait phone video shown in a landscape tile, which is pillarboxed so
+  // the person isn't cut off. Shared screens are never cropped.
   const tilePortrait = height > width;
-  const fitWhole = isScreen || (sourcePortrait !== null && width > 0 && sourcePortrait !== tilePortrait);
+  const fitWhole = isScreen || (sourcePortrait === true && width > 0 && !tilePortrait);
   const onFrameSize = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const { videoWidth, videoHeight } = event.currentTarget;
     if (videoWidth && videoHeight) setSourcePortrait(videoHeight > videoWidth);

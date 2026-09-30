@@ -57,39 +57,11 @@ export function VideoGrid({ participants, selfId, selfStream, remoteStreams }: V
         );
       }
 
-      case "pip": {
-        const self = participants.find((p) => p.id === selfId) ?? participants[1];
-        const other = participants.find((p) => p !== self)!;
-        return (
-          <div className="relative size-full">
-            {tile(other, { className: "size-full" })}
-            {tile(self, {
-              compact: true,
-              className: "absolute bottom-3 right-3 z-10 aspect-[3/4] w-[28%] max-w-40 overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/20",
-            })}
-          </div>
-        );
-      }
-
-      case "fill":
-        return (
-          <div
-            className="grid size-full"
-            style={{
-              gap: GAP_PX,
-              gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
-            }}
-          >
-            {participants.map((p) => tile(p, { compact: layout.columns > 1, className: "min-h-0" }))}
-          </div>
-        );
-
       case "gallery":
         return (
           <div className="flex size-full flex-wrap content-center items-center justify-center" style={{ gap: GAP_PX }}>
             {participants.map((p) =>
-              tile(p, { compact: layout.tileWidth < 360, style: { width: layout.tileWidth, height: layout.tileHeight } }),
+              tile(p, { compact: layout.tileWidth < 240, style: { width: layout.tileWidth, height: layout.tileHeight } }),
             )}
           </div>
         );

@@ -1,18 +1,18 @@
+export const PORTRAIT_TILE_RATIO = 3 / 4;
+export const LANDSCAPE_TILE_RATIO = 16 / 9;
+
 export type RoomLayout =
   | { kind: "share" } // someone is sharing: screen large + strip of cameras
-  | { kind: "pip" } // portrait phone, 1:1 call: other person full screen, self floating (Zoom mobile)
-  | { kind: "fill"; columns: number; rows: number } // portrait: tiles fill the screen, video cropped to fit
-  | ({ kind: "gallery" } & GalleryLayout); // landscape: largest 16:9 tiles that fit
+  | ({ kind: "gallery" } & GalleryLayout); // centred tiles, as large as fit
 
-/** Picks the meeting layout for the available area, mirroring Zoom desktop vs. mobile behaviour. */
+/**
+ * Gallery tiles follow the screen's orientation: 16:9 on landscape screens,
+ * 3:4 on upright phones (matching the portrait camera frame).
+ */
 export function chooseRoomLayout(count: number, width: number, height: number, someoneSharing: boolean): RoomLayout {
   if (someoneSharing) return { kind: "share" };
-  if (height > width) {
-    if (count === 2) return { kind: "pip" };
-    const columns = count <= 2 ? 1 : count <= 6 ? 2 : 3;
-    return { kind: "fill", columns, rows: Math.ceil(count / columns) };
-  }
-  return { kind: "gallery", ...bestGalleryLayout(count, width, height) };
+  const ratio = height > width ? PORTRAIT_TILE_RATIO : LANDSCAPE_TILE_RATIO;
+  return { kind: "gallery", ...bestGalleryLayout(count, width, height, 8, ratio) };
 }
 
 export interface GalleryLayout {

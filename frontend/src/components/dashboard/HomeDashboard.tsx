@@ -9,7 +9,6 @@ import { useMeetingDialogs } from "@/components/meetings/useMeetingDialogs";
 import { Modal } from "@/components/ui/Modal";
 import { useMeetingLists } from "@/hooks/useMeetingLists";
 import { useStartInstantMeeting } from "@/hooks/useStartInstantMeeting";
-import { cn } from "@/lib/cn";
 import { supportsScreenShare } from "@/lib/device";
 import { ActionTile } from "./ActionTile";
 import { ClockBanner } from "./ClockBanner";
@@ -28,18 +27,11 @@ export function HomeDashboard() {
     <main className="mx-auto grid max-w-[1400px] gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:py-14 short:gap-5 short:py-4">
       {/* Left: primary actions */}
       <section aria-label="Meeting actions" className="flex items-start justify-center lg:pt-16">
-        <div
-          className={cn(
-            "grid gap-x-10 gap-y-8 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-12 short:gap-y-4",
-            canShareScreen ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3 gap-x-6 sm:gap-x-10",
-          )}
-        >
+        <div className="grid grid-cols-2 gap-x-10 gap-y-8 sm:grid-cols-4 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-12 short:gap-y-4">
           <ActionTile label="New Meeting" tone="orange" onClick={start} loading={starting} icon={<Video className="size-9" />} />
           <ActionTile label="Join" tone="blue" onClick={() => setJoinIntent("join")} icon={<Plus className="size-10" />} />
           <ActionTile label="Schedule" tone="blue" onClick={actions.schedule} icon={<CalendarDays className="size-9" />} />
-          {canShareScreen && (
-            <ActionTile label="Share Screen" tone="blue" onClick={() => setJoinIntent("share")} icon={<MonitorUp className="size-9" />} />
-          )}
+          <ActionTile label="Share Screen" tone="blue" onClick={() => setJoinIntent("share")} icon={<MonitorUp className="size-9" />} />
         </div>
       </section>
 
@@ -92,7 +84,16 @@ export function HomeDashboard() {
       <Modal open={joinIntent !== null} onClose={() => setJoinIntent(null)} title={joinIntent === "share" ? "Share Screen" : "Join Meeting"}>
         {joinIntent === "share" && (
           <p className="mb-4 rounded-lg bg-zoom-blue-soft px-4 py-3 text-sm text-ink">
-            Join the meeting you want to share to, then click <b>Share Screen</b> in the meeting controls.
+            {canShareScreen ? (
+              <>
+                Join the meeting you want to share to, then click <b>Share Screen</b> in the meeting controls.
+              </>
+            ) : (
+              <>
+                This browser can&apos;t share its screen (mobile browsers don&apos;t allow it). You can still join and
+                watch; to share, join from a computer.
+              </>
+            )}
           </p>
         )}
         <JoinMeetingForm onCancel={() => setJoinIntent(null)} />

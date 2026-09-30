@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cameraConstraints, supportsScreenShare } from "@/lib/device";
+import { cameraConstraints, ensurePortraitFrame, supportsScreenShare } from "@/lib/device";
 
 export interface MediaDevicesState {
   cameraStream: MediaStream | null;
@@ -22,7 +22,7 @@ async function acquireMedia(): Promise<{ stream: MediaStream | null; error: stri
   if (!navigator.mediaDevices?.getUserMedia) {
     return { stream: null, error: "Your browser does not support camera or microphone access." };
   }
-  // Portrait phones get a portrait frame instead of a cropped landscape one.
+  // Upright phones ask for a portrait (cropped) frame; see lib/device.ts.
   const video = cameraConstraints();
   // Fall back gracefully so a missing camera does not also cost the microphone.
   const attempts: MediaStreamConstraints[] = [
@@ -34,6 +34,8 @@ async function acquireMedia(): Promise<{ stream: MediaStream | null; error: stri
   for (const constraints of attempts) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const camera = stream.getVideoTracks()[0];
+      if (camera) await ensurePortraitFrame(camera);
       const partial = !stream.getAudioTracks().length || !stream.getVideoTracks().length;
       return { stream, error: partial ? "Some devices are unavailable. Others can still see or hear you." : null };
     } catch (err) {

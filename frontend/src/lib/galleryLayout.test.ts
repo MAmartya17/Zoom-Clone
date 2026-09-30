@@ -7,14 +7,18 @@ describe("chooseRoomLayout", () => {
     expect(chooseRoomLayout(4, 1400, 800, true).kind).toBe("share");
   });
 
-  it("uses Zoom-mobile picture-in-picture for a 1:1 call on a portrait phone", () => {
-    expect(chooseRoomLayout(2, 390, 700, false).kind).toBe("pip");
+  it("uses portrait 3:4 tiles on an upright phone", () => {
+    const layout = chooseRoomLayout(1, 390, 700, false);
+    expect(layout.kind).toBe("gallery");
+    if (layout.kind === "gallery") {
+      expect(layout.tileHeight).toBeGreaterThan(layout.tileWidth);
+      expect(layout.tileWidth).toBe(390); // full width, like a Zoom mobile self-view
+    }
   });
 
-  it("fills a portrait screen instead of shrinking tiles to 16:9", () => {
-    expect(chooseRoomLayout(1, 390, 700, false)).toEqual({ kind: "fill", columns: 1, rows: 1 });
-    expect(chooseRoomLayout(4, 390, 700, false)).toEqual({ kind: "fill", columns: 2, rows: 2 });
-    expect(chooseRoomLayout(7, 390, 700, false)).toEqual({ kind: "fill", columns: 3, rows: 3 });
+  it("stacks two portrait tiles or places them side by side, whichever is bigger", () => {
+    const layout = chooseRoomLayout(2, 390, 700, false);
+    if (layout.kind === "gallery") expect(layout.tileHeight).toBeGreaterThan(layout.tileWidth);
   });
 
   it("uses 16:9 gallery on landscape screens, including phones held sideways", () => {

@@ -27,9 +27,9 @@ A functional clone of the Zoom web app: start instant meetings, join by Meeting 
 - **Host controls** — *Mute All*, mute one participant, *Remove participant* (server-enforced; the removed session cannot reconnect), *End Meeting for All*.
 - **Responsive design**: desktop, tablet and phone, in both orientations.
   - Modals become bottom sheets on phones.
-  - An upright phone uses the Zoom-mobile picture-in-picture view: the other person full screen, you in a floating corner tile.
+  - An upright phone uses portrait 3:4 tiles. Phone cameras deliver landscape frames, so the app asks the browser to crop to portrait (`aspectRatio` + `resizeMode: crop-and-scale`, retried with `applyConstraints`), and everyone sees a portrait picture.
   - A sideways phone uses a 16:9 gallery with a compact toolbar and a smaller dashboard.
-  - The camera is requested in the device's orientation, and tiles pick crop or fit so portrait video isn't cut off.
+  - Camera tiles fill their space; a portrait phone video in a landscape tile is shown with side bars so the person isn't cut off.
   - The layout respects iPhone notch and home-bar safe areas.
 - **Screen sharing** (spotlight layout), **in-meeting chat** (persisted), **Meetings page** (Upcoming / Previous tabs), Zoom keyboard shortcuts (`Alt+A`, `Alt+V`).
 - **User authentication (Login / Signup / Sign out)**: Zoom-style sign-in and sign-up pages, a demo-account shortcut, and protected Home/Meetings pages that redirect to `/login?next=…` and return you afterwards. Sessions are revocable, so signing out invalidates the token on the server. Passwords are hashed with salted **scrypt**. Guests can still join by link without an account, as in Zoom.
@@ -310,7 +310,7 @@ cd frontend && npm run lint && npm run typecheck
 - **Host leaving without ending** leaves the meeting running without a host (Zoom would ask you to assign a new host).
 - "Stop video" disables the camera track (black frames, avatar shown) rather than releasing the camera hardware.
 - Only one participant can share their screen at a time (Zoom's default).
-- **Screen sharing is desktop-only.** iOS and Android browsers don't implement `getDisplayMedia`, so no website can capture a phone screen; Zoom's own web client can't either, only the native app. The Share button is hidden on phones and tablets, but viewing someone else's share works everywhere.
+- **Screen sharing is desktop-only.** iOS and Android browsers don't implement `getDisplayMedia`, so no website can capture a phone screen; Zoom's own web client can't either, only the native app. The Share button stays visible. Support is feature-detected, so a browser that gains the API just works; otherwise tapping it explains why sharing isn't available. Viewing someone else's share works everywhere.
 - No rate limiting on passcode or login attempts yet.
 - The auth token lives in `localStorage` (needed for cross-site hosting), so it's exposed to any XSS. React escapes output and the app renders no raw HTML, but an HttpOnly cookie behind a same-domain API proxy would be stronger.
 - No email verification, password reset, or OAuth ("Sign in with Google").

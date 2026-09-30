@@ -9,7 +9,6 @@ interface ControlBarProps {
   audioOn: boolean;
   videoOn: boolean;
   sharing: boolean;
-  canShareScreen: boolean;
   participantCount: number;
   unreadChat: number;
   activePanel: "participants" | "chat" | null;
@@ -61,7 +60,7 @@ function ControlButton({
 
 /** Zoom's bottom toolbar: audio/video on the left, collaboration in the middle, leave on the right. */
 export function ControlBar(props: ControlBarProps) {
-  const { audioOn, videoOn, sharing, canShareScreen, participantCount, unreadChat, activePanel, isHost } = props;
+  const { audioOn, videoOn, sharing, participantCount, unreadChat, activePanel, isHost } = props;
 
   return (
     <footer className="shrink-0 border-t border-room-line bg-room-panel pb-[env(safe-area-inset-bottom)]">
@@ -104,17 +103,15 @@ export function ControlBar(props: ControlBarProps) {
             )
           }
         />
-        {canShareScreen && (
-          <ControlButton
-            label={sharing ? "Stop Share" : "Share Screen"}
-            onClick={props.onToggleShare}
-            icon={
-              <span className={cn("flex items-center justify-center rounded-md p-1", sharing ? "bg-zoom-red" : "bg-zoom-green")}>
-                {sharing ? <MonitorX className="size-5" /> : <MonitorUp className="size-5" />}
-              </span>
-            }
-          />
-        )}
+        <ControlButton
+          label={sharing ? "Stop Share" : "Share Screen"}
+          onClick={props.onToggleShare}
+          icon={
+            <span className={cn("flex items-center justify-center rounded-md p-1", sharing ? "bg-zoom-red" : "bg-zoom-green")}>
+              {sharing ? <MonitorX className="size-5" /> : <MonitorUp className="size-5" />}
+            </span>
+          }
+        />
       </div>
 
       {isHost ? (
