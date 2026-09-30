@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Phones in landscape: very little vertical room, so meeting chrome shrinks. */
+@custom-variant short (@media (max-height: 500px));
+
 /* Zoom design tokens (brand refresh palette). */
 @theme {
   --font-sans: var(--font-lato), "Segoe UI", Helvetica, Arial, sans-serif;

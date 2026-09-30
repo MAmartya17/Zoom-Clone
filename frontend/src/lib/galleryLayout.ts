@@ -1,3 +1,20 @@
+export type RoomLayout =
+  | { kind: "share" } // someone is sharing: screen large + strip of cameras
+  | { kind: "pip" } // portrait phone, 1:1 call: other person full screen, self floating (Zoom mobile)
+  | { kind: "fill"; columns: number; rows: number } // portrait: tiles fill the screen, video cropped to fit
+  | ({ kind: "gallery" } & GalleryLayout); // landscape: largest 16:9 tiles that fit
+
+/** Picks the meeting layout for the available area, mirroring Zoom desktop vs. mobile behaviour. */
+export function chooseRoomLayout(count: number, width: number, height: number, someoneSharing: boolean): RoomLayout {
+  if (someoneSharing) return { kind: "share" };
+  if (height > width) {
+    if (count === 2) return { kind: "pip" };
+    const columns = count <= 2 ? 1 : count <= 6 ? 2 : 3;
+    return { kind: "fill", columns, rows: Math.ceil(count / columns) };
+  }
+  return { kind: "gallery", ...bestGalleryLayout(count, width, height) };
+}
+
 export interface GalleryLayout {
   columns: number;
   tileWidth: number;

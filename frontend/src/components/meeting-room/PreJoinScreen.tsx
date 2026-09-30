@@ -61,13 +61,13 @@ export function PreJoinScreen({ preview, isHost, media, initialName, initialPass
 
   return (
     <div className="flex min-h-dvh flex-col bg-room text-white">
-      <header className="flex h-14 items-center px-6">
+      <header className="flex h-14 items-center px-6 short:h-10">
         <Link href="/" aria-label="Back to home">
           <ZoomLogo dark />
         </Link>
       </header>
 
-      <main className="mx-auto grid w-full max-w-5xl flex-1 content-center items-center gap-8 px-4 pb-10 md:grid-cols-[1.4fr_1fr]">
+      <main className="mx-auto grid w-full max-w-5xl flex-1 content-center items-center gap-6 px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:gap-8 md:grid-cols-[1.4fr_1fr] short:grid-cols-2 short:gap-4 short:pb-4">
         <div className="flex flex-col gap-3">
           <VideoTile
             name={name.trim() || "You"}
@@ -75,7 +75,8 @@ export function PreJoinScreen({ preview, isHost, media, initialName, initialPass
             audioOn={media.audioEnabled}
             videoOn={media.videoEnabled}
             isSelf
-            className="aspect-video w-full"
+            // Upright phones get a portrait preview (their camera is portrait); wider screens get 16:9.
+            className="mx-auto aspect-[3/4] h-[42dvh] max-w-full sm:aspect-video sm:h-auto sm:w-full short:h-[55dvh] short:w-auto"
           />
           <div className="flex justify-center gap-3">
             <PreviewToggle

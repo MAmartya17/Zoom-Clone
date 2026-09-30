@@ -7,6 +7,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import type { MediaDevices } from "@/hooks/useMediaDevices";
 import { useMeetingRoom } from "@/hooks/useMeetingRoom";
 import { formatElapsed } from "@/lib/datetime";
+import { supportsScreenShare } from "@/lib/device";
 import { orderedParticipants, type RoomStatus } from "@/lib/realtime/roomReducer";
 import { useToast } from "@/providers/ToastProvider";
 import type { JoinSession } from "@/types/meeting";
@@ -33,6 +34,8 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
   const [panel, setPanel] = useState<Panel>(null);
   const [seenMessages, setSeenMessages] = useState(0);
   const [joinedAt] = useState(() => Date.now());
+  // Phones can't capture their screen from a browser; hide the button there.
+  const [canShareScreen] = useState(supportsScreenShare);
   const now = useClock(1000);
   const isHost = session.participant.role === "host";
 
@@ -82,8 +85,9 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
     if (sharing) return media.stopScreenShare();
     const other = participants.find((p) => p.screen && p.id !== state.selfId);
     if (other) return toast.info(`${other.display_name} is sharing. Only one participant can share at a time.`);
-    const started = await media.startScreenShare();
-    if (!started && !navigator.mediaDevices?.getDisplayMedia) toast.error("Screen sharing is not supported on this device.");
+    const result = await media.startScreenShare();
+    if (result === "unsupported") toast.error("Screen sharing isn't supported in this browser. Use Chrome, Edge or Firefox on a computer.");
+    if (result === "failed") toast.error("Couldn't start screen sharing. Check your browser's screen-recording permission.");
   };
 
   const elapsedSince = session.meeting.started_at ? new Date(session.meeting.started_at).getTime() : joinedAt;
@@ -99,7 +103,7 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
 
   return (
     <div className="flex h-dvh flex-col bg-room text-white">
-      <header className="flex h-11 shrink-0 items-center justify-between px-3">
+      <header className="flex h-11 shrink-0 items-center justify-between px-3 pt-[env(safe-area-inset-top)] short:h-8">
         <div className="flex min-w-0 items-center gap-2">
           <MeetingInfoButton meeting={session.meeting} />
           <span className="truncate text-sm font-bold">{session.meeting.title}</span>
@@ -138,6 +142,7 @@ export function MeetingRoom({ session, media, onExit }: MeetingRoomProps) {
         audioOn={media.audioEnabled}
         videoOn={media.videoEnabled}
         sharing={sharing}
+        canShareScreen={canShareScreen}
         participantCount={participants.length}
         unreadChat={panel === "chat" ? 0 : state.messages.length - seenMessages}
         activePanel={panel}

@@ -9,6 +9,7 @@ interface ControlBarProps {
   audioOn: boolean;
   videoOn: boolean;
   sharing: boolean;
+  canShareScreen: boolean;
   participantCount: number;
   unreadChat: number;
   activePanel: "participants" | "chat" | null;
@@ -39,9 +40,12 @@ function ControlButton({
   return (
     <button
       onClick={onClick}
+      // Labels are visually hidden on phones, so the accessible name must not depend on them.
+      aria-label={label}
+      title={label}
       aria-pressed={active}
       className={cn(
-        "relative flex min-w-14 flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] text-white/90 transition-colors hover:bg-room-hover sm:min-w-20 sm:px-3",
+        "relative flex min-w-12 flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] text-white/90 transition-colors hover:bg-room-hover sm:min-w-20 sm:px-3 short:py-1",
         active && "bg-room-hover",
         className,
       )}
@@ -50,17 +54,18 @@ function ControlButton({
         {icon}
         {badge}
       </span>
-      <span className="hidden whitespace-nowrap sm:block">{label}</span>
+      <span className="hidden whitespace-nowrap sm:block short:hidden">{label}</span>
     </button>
   );
 }
 
 /** Zoom's bottom toolbar: audio/video on the left, collaboration in the middle, leave on the right. */
 export function ControlBar(props: ControlBarProps) {
-  const { audioOn, videoOn, sharing, participantCount, unreadChat, activePanel, isHost } = props;
+  const { audioOn, videoOn, sharing, canShareScreen, participantCount, unreadChat, activePanel, isHost } = props;
 
   return (
-    <footer className="flex h-16 shrink-0 items-center justify-between gap-2 border-t border-room-line bg-room-panel px-2 sm:h-[72px] sm:px-4">
+    <footer className="shrink-0 border-t border-room-line bg-room-panel pb-[env(safe-area-inset-bottom)]">
+      <div className="flex h-16 items-center justify-between gap-1 px-2 sm:h-[72px] sm:gap-2 sm:px-4 short:h-12">
       <div className="flex items-center gap-1">
         <ControlButton
           label={audioOn ? "Mute" : "Unmute"}
@@ -99,15 +104,17 @@ export function ControlBar(props: ControlBarProps) {
             )
           }
         />
-        <ControlButton
-          label={sharing ? "Stop Share" : "Share Screen"}
-          onClick={props.onToggleShare}
-          icon={
-            <span className={cn("flex items-center justify-center rounded-md p-1", sharing ? "bg-zoom-red" : "bg-zoom-green")}>
-              {sharing ? <MonitorX className="size-5" /> : <MonitorUp className="size-5" />}
-            </span>
-          }
-        />
+        {canShareScreen && (
+          <ControlButton
+            label={sharing ? "Stop Share" : "Share Screen"}
+            onClick={props.onToggleShare}
+            icon={
+              <span className={cn("flex items-center justify-center rounded-md p-1", sharing ? "bg-zoom-red" : "bg-zoom-green")}>
+                {sharing ? <MonitorX className="size-5" /> : <MonitorUp className="size-5" />}
+              </span>
+            }
+          />
+        )}
       </div>
 
       {isHost ? (
@@ -123,13 +130,14 @@ export function ControlBar(props: ControlBarProps) {
       ) : (
         <LeaveButton label="Leave" onClick={props.onLeave} />
       )}
+      </div>
     </footer>
   );
 }
 
 function LeaveButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="rounded-lg bg-zoom-red px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-zoom-red-hover">
+    <button onClick={onClick} className="rounded-lg bg-zoom-red px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-zoom-red-hover sm:px-4 short:py-1.5">
       {label}
     </button>
   );

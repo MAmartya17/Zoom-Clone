@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { bestGalleryLayout } from "./galleryLayout";
+import { bestGalleryLayout, chooseRoomLayout } from "./galleryLayout";
+
+describe("chooseRoomLayout", () => {
+  it("uses the screen-share spotlight whenever someone shares", () => {
+    expect(chooseRoomLayout(2, 390, 700, true).kind).toBe("share");
+    expect(chooseRoomLayout(4, 1400, 800, true).kind).toBe("share");
+  });
+
+  it("uses Zoom-mobile picture-in-picture for a 1:1 call on a portrait phone", () => {
+    expect(chooseRoomLayout(2, 390, 700, false).kind).toBe("pip");
+  });
+
+  it("fills a portrait screen instead of shrinking tiles to 16:9", () => {
+    expect(chooseRoomLayout(1, 390, 700, false)).toEqual({ kind: "fill", columns: 1, rows: 1 });
+    expect(chooseRoomLayout(4, 390, 700, false)).toEqual({ kind: "fill", columns: 2, rows: 2 });
+    expect(chooseRoomLayout(7, 390, 700, false)).toEqual({ kind: "fill", columns: 3, rows: 3 });
+  });
+
+  it("uses 16:9 gallery on landscape screens, including phones held sideways", () => {
+    const layout = chooseRoomLayout(2, 800, 280, false);
+    expect(layout.kind).toBe("gallery");
+    if (layout.kind === "gallery") expect(layout.tileHeight).toBeLessThanOrEqual(280);
+  });
+});
 
 describe("bestGalleryLayout", () => {
   it("keeps a single tile 16:9 and bounded by height", () => {

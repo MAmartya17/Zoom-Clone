@@ -1,8 +1,9 @@
 "use client";
 
 import { MicOff } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
+import { useElementSize } from "@/hooks/useElementSize";
 import { useSpeaking } from "@/hooks/useSpeaking";
 import { cn } from "@/lib/cn";
 
@@ -20,7 +21,18 @@ interface VideoTileProps {
 
 export function VideoTile({ name, stream, audioOn, videoOn, isSelf = false, isHost = false, isScreen = false, className, compact = false }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { ref: tileRef, width, height } = useElementSize<HTMLDivElement>();
+  const [sourcePortrait, setSourcePortrait] = useState<boolean | null>(null);
   const speaking = useSpeaking(stream, audioOn);
+
+  // Crop to fill when the video and tile have the same orientation; otherwise
+  // show the whole frame (e.g. a portrait phone camera in a landscape tile).
+  const tilePortrait = height > width;
+  const fitWhole = isScreen || (sourcePortrait !== null && width > 0 && sourcePortrait !== tilePortrait);
+  const onFrameSize = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const { videoWidth, videoHeight } = event.currentTarget;
+    if (videoWidth && videoHeight) setSourcePortrait(videoHeight > videoWidth);
+  };
 
   useEffect(() => {
     const element = videoRef.current;
@@ -32,6 +44,7 @@ export function VideoTile({ name, stream, audioOn, videoOn, isSelf = false, isHo
 
   return (
     <div
+      ref={tileRef}
       className={cn(
         "relative flex items-center justify-center overflow-hidden rounded-xl bg-room-tile",
         "ring-2 transition-shadow",
@@ -45,9 +58,11 @@ export function VideoTile({ name, stream, audioOn, videoOn, isSelf = false, isHo
         autoPlay
         playsInline
         muted={isSelf}
+        onLoadedMetadata={onFrameSize}
+        onResize={onFrameSize}
         className={cn(
           "absolute inset-0 size-full",
-          isScreen ? "object-contain" : "object-cover",
+          fitWhole ? "object-contain" : "object-cover",
           isSelf && !isScreen && "mirror",
           !showVideo && "invisible",
         )}

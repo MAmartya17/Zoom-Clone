@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cameraConstraints, supportsScreenShare } from "@/lib/device";
 
 export interface MediaDevicesState {
   cameraStream: MediaStream | null;
@@ -15,17 +16,19 @@ export interface MediaDevicesState {
   error: string | null;
 }
 
-const VIDEO_CONSTRAINTS: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" };
+export type ScreenShareResult = "started" | "cancelled" | "unsupported" | "failed";
 
 async function acquireMedia(): Promise<{ stream: MediaStream | null; error: string | null }> {
   if (!navigator.mediaDevices?.getUserMedia) {
     return { stream: null, error: "Your browser does not support camera or microphone access." };
   }
+  // Portrait phones get a portrait frame instead of a cropped landscape one.
+  const video = cameraConstraints();
   // Fall back gracefully so a missing camera does not also cost the microphone.
   const attempts: MediaStreamConstraints[] = [
-    { audio: true, video: VIDEO_CONSTRAINTS },
+    { audio: true, video },
     { audio: true, video: false },
-    { audio: false, video: VIDEO_CONSTRAINTS },
+    { audio: false, video },
   ];
   let lastError: unknown = null;
   for (const constraints of attempts) {
@@ -93,8 +96,8 @@ export function useMediaDevices(initial: { audio: boolean; video: boolean }) {
     setScreenTrack(null);
   }, []);
 
-  const startScreenShare = useCallback(async (): Promise<boolean> => {
-    if (!navigator.mediaDevices?.getDisplayMedia) return false;
+  const startScreenShare = useCallback(async (): Promise<ScreenShareResult> => {
+    if (!supportsScreenShare()) return "unsupported";
     try {
       const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const track = display.getVideoTracks()[0];
@@ -102,9 +105,10 @@ export function useMediaDevices(initial: { audio: boolean; video: boolean }) {
       track.onended = stopScreenShare;
       screenRef.current = track;
       setScreenTrack(track);
-      return true;
-    } catch {
-      return false; // user cancelled the picker
+      return "started";
+    } catch (err) {
+      // NotAllowedError = the user closed the picker; anything else is a real failure.
+      return err instanceof DOMException && err.name === "NotAllowedError" ? "cancelled" : "failed";
     }
   }, [stopScreenShare]);
 
